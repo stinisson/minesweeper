@@ -59,14 +59,3 @@ def read_values_from_board(im):
         print("|")
 
     return board_values
-
-
-if __name__ == '__main__':
-    from PIL import Image
-
-    with Image.open("screenshots/screenshot_unicorn_number__2021-10-16_03_20_27.png") as im:
-        board = read_values_from_board(im)
-        print(board)
-        print('F', board.count('F'))
-
-
