@@ -14,6 +14,7 @@ def read_board_state(im):
         Possible values:
         "1"-"8": square numbers depicting number of neighbouring mines,
         "F": flagged mine, "M": mine, "-": unopened square, "x": opened square, "U": unknown."""
+    print("")
     board = []
     for row in range(ROWS):
         for col in range(COLS):
