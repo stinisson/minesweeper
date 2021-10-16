@@ -1,7 +1,10 @@
 import pyautogui
+from datetime import datetime
+import mss
+from PIL import Image
+
 from constants import ROWS, COLS, SQUARE_WIDTH, SQUARE_HEIGHT, WIDTH, HEIGHT, NUM_MINES, BOARD_LEFT_TOP
 from read_board_values import read_values_from_board
-from datetime import datetime
 
 
 def setup():
@@ -24,32 +27,43 @@ def reset_game():
         print("Resetting game!")
 
 
+def game_won_displayed():
+    high_score_location = pyautogui.locateOnScreen('img/win.png', confidence=0.9)
+    if high_score_location:
+        print("Game won! :)")
+        return True
+    return False
+
+
 def run_game():
     reset_game()
     board_origo = setup()
     probabilities = []
-    mines_flagged = []
+    flag_count = 0
 
     while True:
-        print(f" \n-------------------------------- ROUND ---------------------------------")
+        print(f" \n-------------------------------- OPEN SQUARE ---------------------------------")
         if len(probabilities) == 0:
             click_square(row=0, col=0, button='left', board_origo=board_origo)
         else:
-            tmp_prob = [prob for prob in probabilities if prob not in ["-xx-", "-mm-"]]
-            least_prob = min(tmp_prob)
-            least_prob_idx = probabilities.index(least_prob)
+            temp_probabilities = [prob for prob in probabilities if prob not in ["-xx-", "-mm-"]]
+            lowest_probability = min(temp_probabilities)
+            lowest_prob_idx = probabilities.index(lowest_probability)
 
-            row_ = least_prob_idx // COLS
-            col_ = least_prob_idx % COLS
-            click_square(row=row_, col=col_, button='left', board_origo=board_origo)
+            row = lowest_prob_idx // COLS
+            col = lowest_prob_idx % COLS
+            click_square(row=row, col=col, button='left', board_origo=board_origo)
 
-        im = pyautogui.screenshot(region=(board_origo[0], board_origo[1], WIDTH, HEIGHT))  # "screenshots/hej.png",
-        board_values = read_values_from_board(im, mines_flagged)
+        im = take_board_screenshot(board_origo)
+        board_values = read_values_from_board(im)
+
+        if 'U' in board_values:   # A board value that isn't recognized is marked as U (unknown), stop game if U appear
+            break
 
         if 'M' in board_values:
             print("Oh noes, a mine was clicked!")
             break
-        if any(x in board_values for x in ['6', '7', '8']):
+        if any(x in board_values for x in ['7', '8']):
             take_unicorn_screenshot("unicorn_number", board_origo)
 
         square_numbers = square_numbers_on_board(board_values)
@@ -57,12 +71,31 @@ def run_game():
         while True:
             calculate_base_probabilities(board_values, probabilities)
             update_square_number_probabilities(square_numbers, probabilities, board_values)
-            if not mark_mine_with_flag(probabilities, mines_flagged, board_values, board_origo=board_origo):
+            if not mark_mine_with_flag(probabilities, board_values, board_origo=board_origo):
                 break
+            flag_count += 1
 
-    show_probability_matrix(probabilities)
-    print("-- Result --")
-    print("Mines left:", 99 - board_values.count('F'))
+        print("Flag count", flag_count)
+        if flag_count == NUM_MINES:  # or game_won_displayed():   # All mines flagged, high score displayed
+            while '-' in board_values:
+                mine_idx = board_values.index('-')
+                click_square(row=mine_idx // COLS, col=mine_idx % COLS, button='left', board_origo=board_origo)
+                if game_won_displayed():
+                    break
+                im = take_board_screenshot(board_origo)
+                board_values = read_values_from_board(im)
+                # if board_values is None:
+                #     print("[87] was reached, board values are None")
+                #     break
+            quit()
+
+        show_probability_matrix(probabilities)
+        print_result(board_values)
+
+
+def print_result(board_values):
+    print("\n----  Result  ----")
+    print("Mines left:", NUM_MINES - board_values.count('F'))
     print("Squares left:", board_values.count('-'))
 
 
@@ -135,19 +168,19 @@ def update_square_number_probabilities(square_numbers, probabilities, board_valu
                     probabilities[neigh_idx] = neigh_prob
 
 
-def mark_mine_with_flag(probabilities, mines_flagged, board_values, board_origo):
+def mark_mine_with_flag(probabilities, board_values, board_origo):
     mine_indices = [i for i, prob in enumerate(probabilities) if prob == 1.00]
     for mine_idx in mine_indices:
-        if mine_idx not in mines_flagged:
-            row_ = mine_idx // COLS
-            col_ = mine_idx % COLS
-            click_square(row=row_, col=col_, button='right', board_origo=board_origo)
-            set_mine_in_probabilities(probabilities, row_, col_)
-            board_values[mine_idx] = 'F'
-            mines_flagged.append(mine_idx)
-            if len(mines_flagged) == NUM_MINES:
-                take_unicorn_screenshot("99_mines_flagged", board_origo=board_origo)
-            return True
+        if board_values[mine_idx] == 'F':
+            continue
+        row_ = mine_idx // COLS
+        col_ = mine_idx % COLS
+        click_square(row=row_, col=col_, button='right', board_origo=board_origo)
+        set_mine_in_probabilities(probabilities, row_, col_)
+        board_values[mine_idx] = 'F'
+        if board_values.count('F') == NUM_MINES:
+            take_unicorn_screenshot("all_mines_flagged", board_origo=board_origo)
+        return True
     return False
 
 
@@ -182,23 +215,28 @@ def click_square(row, col, button, board_origo):
 def square_numbers_on_board(board_values):
     square_numbers = {}
     for idx in range(len(board_values)):
-        if board_values[idx] in ["1", "2", "3", "4", "5"]:
+        if board_values[idx] in ["1", "2", "3", "4", "5", "6", "7", "8"]:
             square_numbers[idx] = board_values[idx]  # {value index: number value}
     return square_numbers
 
 
+def take_board_screenshot(board_origo):
+    with mss.mss() as sct:
+        monitor = {
+            'top': board_origo[1],
+            'left': board_origo[0],
+            'width': WIDTH,
+            'height': HEIGHT
+        }
+        sct_img = sct.grab(monitor)
+        im = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+    return im
+
+
 def take_unicorn_screenshot(unicorn, board_origo):
-    # If any of the rare 6, 7 or 8 occur on the board, or 99 mines are flagged - take a screenshot
+    # If a 7 or 8 occur on the board, or all mines are flagged - take a screenshot
+    # 7and 8 are rare numbers, as is a round where all mines are flagged
     timestamp = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
     file_ending = f"{unicorn}__{timestamp}"
-    im = pyautogui.screenshot(f"screenshots/screenshot_{file_ending}.png",
-                              region=(board_origo[0], board_origo[1], WIDTH, HEIGHT))
-
-
-def main():
-    for i in range(3):
-        run_game()
-
-
-if __name__ == '__main__':
-    main()
+    pyautogui.screenshot(f"screenshots/screenshot_{file_ending}.png",
+                         region=(board_origo[0], board_origo[1], WIDTH, HEIGHT))
