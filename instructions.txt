@@ -1,10 +1,10 @@
-# Minesweeper for kmines https://github.com/KDE/kmines
+# Minesweeper for KMines https://github.com/KDE/kmines
 # Theme: default (oxygen)
 # Difficulty: Hard (99 mines, 16x30 board)
 
-# The following constants needs to be set in constants.py:
+# The following constants need to be set in constants.py:
 # - square width and height (setup_board_size_with_gimp_square_width_height.png)
 # - BOARD_LEFT_TOP (x, y) The distance from the button 'New' to first square (setup_board_size_with_gimp.png)
-# GIMP is a great tool for measuring distance at pixel level
+# GIMP is a good tool for measuring distance at pixel level
 
 # Pixel value ranges can be set in read_board_values.py
